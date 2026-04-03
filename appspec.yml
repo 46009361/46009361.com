@@ -2,8 +2,7 @@ version: 0.0
 os: linux
 files:
   - source: /
-    destination: /var/www/html
-    overwrite: yes
+    destination: /var/www/html/
 hooks:
   BeforeInstall:
     - location: scripts/install_dependencies.sh
@@ -17,4 +16,3 @@ hooks:
     - location: scripts/stop_server.sh
       timeout: 300
       runas: root
-      
