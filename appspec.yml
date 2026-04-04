@@ -3,9 +3,12 @@ os: linux
 files:
   - source: /
     destination: /var/www/html/
-    overwrite: yes
+    file_exists_behavior: OVERWRITE
 hooks:
   BeforeInstall:
+    - location: scripts/cleanup_conflicts.sh
+      timeout: 60
+      runas: root
     - location: scripts/install_dependencies.sh
       timeout: 300
       runas: root
