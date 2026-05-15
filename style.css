@@ -1,3 +1,9 @@
+:root {
+    color-scheme: light dark;
+}
+
 body {
     font-family: Arial, Helvetica, sans-serif;
+    background-color: light-dark(whitesmoke, #0a0a0a);
+    color: light-dark(#0a0a0a, whitesmoke);
 }
