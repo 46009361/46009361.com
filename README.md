@@ -7,6 +7,7 @@ This is my personal website. To save on AWS costs, I've moved to GitHub Pages, a
 - Links to some of my other projects
 - Old URL paths (e.g. `/vote/index.php`) still work
 - Dark theme, if your browser is set to that
+- Up-to-date Font Awesome icons
 
 ## Running locally
 
