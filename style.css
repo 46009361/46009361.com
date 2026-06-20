@@ -1,5 +1,6 @@
 :root {
     color-scheme: light dark;
+    --gh: light-dark(#000, #fff);
 }
 
 body {
@@ -8,8 +9,12 @@ body {
     color: light-dark(#0a0a0a, #f5f5f5);
 }
 
-.gh {
-    color: light-dark(#000, #fff);
+.gh:link, .gh:visited, .gh:hover, .gh:active {
+    color: var(--gh);
+}
+
+.gh:link i, .gh:visited i, .gh:hover i, .gh:active i {
+    color: var(--gh);
 }
 
 .fa-bitcoin {
