@@ -7,3 +7,7 @@ body {
     background-color: light-dark(whitesmoke, #0a0a0a);
     color: light-dark(#0a0a0a, whitesmoke);
 }
+
+.fa-bitcoin {
+    color: #f7931a;
+}
