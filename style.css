@@ -1,6 +1,5 @@
 :root {
     color-scheme: light dark;
-    --gh: light-dark(#000, #fff);
 }
 
 body {
@@ -9,14 +8,24 @@ body {
     color: light-dark(#0a0a0a, #f5f5f5);
 }
 
-.gh:link, .gh:visited, .gh:hover, .gh:active {
-    color: var(--gh);
-}
+.fa-github, .fa-x-twitter, .fa-medium {
+    color: light-dark(#000, #fff);
 
-.gh:link i, .gh:visited i, .gh:hover i, .gh:active i {
-    color: var(--gh);
 }
 
 .fa-bitcoin {
     color: #f7931a;
+}
+
+.fa-reddit {
+    color: #ff4500;
+}
+
+.fa-bluesky {
+    color: #1185fe;
+}
+
+/* source: https://substack.com/img/substack.png */
+.fa-substack {
+    color: #ff6719;
 }
