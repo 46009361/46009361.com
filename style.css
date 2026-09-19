@@ -25,7 +25,11 @@ body {
     color: #1185fe;
 }
 
-/* source: https://substack.com/img/substack.png */
+/* source: https://substack.com/img/substack.png; Wikimedia Commons doesn't agree */
 .fa-substack {
     color: #ff6719;
+}
+
+.fa-itch-io {
+    color: #fa5c5c;
 }
