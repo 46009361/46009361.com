@@ -1,0 +1,96 @@
+name: Sync chemistry-flashcards
+
+on:
+  repository_dispatch:
+    types:
+      - chemistry-flashcards-sync
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-chemistry-flashcards
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    env:
+      SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository || '46009361/chemistry-flashcards' }}
+      SOURCE_REF: ${{ github.event.client_payload.source_sha || 'main' }}
+      SOURCE_COMMIT_MESSAGE: ${{ github.event.client_payload.commit_message || 'Synchronize chemistry-flashcards' }}
+
+    steps:
+      - name: Check out target repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check out source repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.SOURCE_REF }}
+          token: ${{ secrets.SOURCE_READ_TOKEN }}
+          path: .source-chemistry-flashcards
+          fetch-depth: 1
+
+      - name: Synchronize source folder
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_DIR=".source-chemistry-flashcards"
+          TARGET_DIR="chemistry-flashcards"
+
+          mkdir -p "$TARGET_DIR"
+
+          # Delete the previous synchronized contents while preserving the
+          # target directory itself.
+          find "$TARGET_DIR" \
+            -mindepth 1 \
+            -maxdepth 1 \
+            -exec rm -rf -- {} +
+
+          # Copy source files, excluding Git metadata and hidden files.
+          find "$SOURCE_DIR" \
+            -mindepth 1 \
+            -type f \
+            -not -path "$SOURCE_DIR/.git/*" \
+            -not -path "$SOURCE_DIR/.github/*" \
+            -not -path '*/.*' \
+            -print0 |
+          while IFS= read -r -d '' source_file; do
+            relative_path="${source_file#"$SOURCE_DIR"/}"
+            target_file="$TARGET_DIR/$relative_path"
+
+            mkdir -p "$(dirname "$target_file")"
+            cp "$source_file" "$target_file"
+          done
+
+          rm -rf "$SOURCE_DIR"
+
+      - name: Commit synchronized files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add --all -- chemistry-flashcards
+
+          if git diff --cached --quiet; then
+            echo "No synchronization changes detected."
+            exit 0
+          fi
+
+          git commit \
+            -m "$SOURCE_COMMIT_MESSAGE"
+
+          git push origin "HEAD:${GITHUB_REF_NAME}"
