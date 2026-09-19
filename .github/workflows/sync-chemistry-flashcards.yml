@@ -1,5 +1,5 @@
 name: Sync chemistry-flashcards
-# test
+
 on:
   repository_dispatch:
     types:
