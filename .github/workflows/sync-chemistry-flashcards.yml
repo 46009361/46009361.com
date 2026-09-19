@@ -4,7 +4,6 @@ on:
   repository_dispatch:
     types:
       - chemistry-flashcards-sync
-
   workflow_dispatch:
 
 permissions:
@@ -22,23 +21,46 @@ jobs:
       SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository || '46009361/chemistry-flashcards' }}
       SOURCE_REF: ${{ github.event.client_payload.source_sha || 'main' }}
       SOURCE_COMMIT_MESSAGE: ${{ github.event.client_payload.commit_message || 'Synchronize chemistry-flashcards' }}
+      GIT_USER_NAME: "46009361"
+      GIT_USER_EMAIL: "165697051+46009361@users.noreply.github.com"
 
     steps:
-      - name: Check out target repository
+      - name: Check out target repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Check out source repository
+      - name: Check out source repo
         uses: actions/checkout@v4
         with:
           repository: ${{ env.SOURCE_REPOSITORY }}
           ref: ${{ env.SOURCE_REF }}
-          token: ${{ secrets.SOURCE_READ_TOKEN }}
+          token: ${{ secrets.TARGET_PUSH_TOKEN }}
           path: .source-chemistry-flashcards
           fetch-depth: 1
 
-      - name: Synchronize source folder
+      - name: Set up SSH signing key
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.SSH_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          cat > ~/.ssh/id_ed25519 <<'EOF'
+          ${SIGNING_KEY}
+          EOF
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
+
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_ed25519
+
+      - name: Synchronize files
         shell: bash
         run: |
           set -euo pipefail
@@ -48,14 +70,8 @@ jobs:
 
           mkdir -p "$TARGET_DIR"
 
-          # Delete the previous synchronized contents while preserving the
-          # target directory itself.
-          find "$TARGET_DIR" \
-            -mindepth 1 \
-            -maxdepth 1 \
-            -exec rm -rf -- {} +
+          find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
-          # Copy source files, excluding Git metadata and hidden files.
           find "$SOURCE_DIR" \
             -mindepth 1 \
             -type f \
@@ -73,24 +89,32 @@ jobs:
 
           rm -rf "$SOURCE_DIR"
 
-      - name: Commit synchronized files
+      - name: Sign and push commit
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          TARGET_PUSH_TOKEN: ${{ secrets.TARGET_PUSH_TOKEN }}
         run: |
           set -euo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "$GIT_USER_NAME"
+          git config user.email "$GIT_USER_EMAIL"
+
+          git config gpg.format ssh
+          git config user.signingkey ~/.ssh/id_ed25519.pub
+          git config commit.gpgsign true
+
+          git config core.filemode false
 
           git add --all -- chemistry-flashcards
 
           if git diff --cached --quiet; then
-            echo "No synchronization changes detected."
+            echo "No synchronization changes."
             exit 0
           fi
 
-          git commit \
-            -m "$SOURCE_COMMIT_MESSAGE"
+          # Sign the commit with the SSH key tied to your GitHub account
+          git commit -S -m "$SOURCE_COMMIT_MESSAGE"
 
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # Push using your account PAT so GitHub verifies the signed commit
+          git remote set-url origin "https://x-access-token:${TARGET_PUSH_TOKEN}@github.com/46009361/46009361.com.git"
+          git push origin HEAD:main
