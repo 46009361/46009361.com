@@ -21,8 +21,8 @@ jobs:
       SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository || '46009361/chemistry-flashcards' }}
       SOURCE_REF: ${{ github.event.client_payload.source_sha || 'main' }}
       SOURCE_COMMIT_MESSAGE: ${{ github.event.client_payload.commit_message || 'Synchronize chemistry-flashcards' }}
-      GIT_USER_NAME: "Your Name"
-      GIT_USER_EMAIL: "your_verified_email@example.com"
+      GIT_USER_NAME: "46009361"
+      GIT_USER_EMAIL: "165697051+46009361@users.noreply.github.com"
 
     steps:
       - name: Check out target repository
@@ -60,11 +60,9 @@ jobs:
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
 
-          # Write the OpenSSH private key exactly as stored in the secret.
           printf '%s\n' "$SIGNING_KEY" > "$HOME/.ssh/github-signing"
           chmod 600 "$HOME/.ssh/github-signing"
 
-          # Write the public key exactly as stored in the secret.
           printf '%s\n' "$SIGNING_PUBLIC_KEY" > "$HOME/.ssh/github-signing.pub"
           chmod 644 "$HOME/.ssh/github-signing.pub"
 
@@ -76,20 +74,16 @@ jobs:
           eval "$(ssh-agent -s)"
 
           if [ -n "${SIGNING_PASSPHRASE:-}" ]; then
-            export SSH_ASKPASS_REQUIRE=force
-            export DISPLAY=:99
+            ASKPASS_FILE="$RUNNER_TEMP/ssh-askpass"
+            printf '%s\n' "$SIGNING_PASSPHRASE" > "$ASKPASS_FILE"
+            chmod 700 "$ASKPASS_FILE"
 
-            ASKPASS_SCRIPT="$(mktemp)"
-            chmod 700 "$ASKPASS_SCRIPT"
-
-            cat > "$ASKPASS_SCRIPT" <<'ASKPASS'
-#!/usr/bin/env bash
-printf '%s\n' "$SIGNING_PASSPHRASE"
-ASKPASS
-
-            export SSH_ASKPASS="$ASKPASS_SCRIPT"
+            SSH_ASKPASS="$ASKPASS_FILE" \
+            DISPLAY=:0 \
+            SSH_ASKPASS_REQUIRE=force \
             ssh-add "$HOME/.ssh/github-signing"
-            rm -f "$ASKPASS_SCRIPT"
+
+            rm -f "$ASKPASS_FILE"
           else
             ssh-add "$HOME/.ssh/github-signing"
           fi
@@ -104,7 +98,6 @@ ASKPASS
 
           mkdir -p "$TARGET_DIR"
 
-          # Remove previous synchronized contents to ensure mirror behavior.
           find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
           find "$SOURCE_DIR" \
