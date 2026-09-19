@@ -21,21 +21,21 @@ jobs:
       SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository || '46009361/chemistry-flashcards' }}
       SOURCE_REF: ${{ github.event.client_payload.source_sha || 'main' }}
       SOURCE_COMMIT_MESSAGE: ${{ github.event.client_payload.commit_message || 'Synchronize chemistry-flashcards' }}
-      GIT_USER_NAME: "46009361"
-      GIT_USER_EMAIL: "165697051+46009361@users.noreply.github.com"
+      GIT_USER_NAME: "Your Name"
+      GIT_USER_EMAIL: "your_verified_email@example.com"
 
     steps:
-      - name: Check out target repo
+      - name: Check out target repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Check out source repo
+      - name: Check out source repository
         uses: actions/checkout@v4
         with:
           repository: ${{ env.SOURCE_REPOSITORY }}
           ref: ${{ env.SOURCE_REF }}
-          token: ${{ secrets.TARGET_PUSH_TOKEN }}
+          token: ${{ secrets.SOURCE_READ_TOKEN }}
           path: .source-chemistry-flashcards
           fetch-depth: 1
 
@@ -54,11 +54,15 @@ jobs:
           EOF
           chmod 600 ~/.ssh/id_ed25519
 
-          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
-          chmod 644 ~/.ssh/id_ed25519.pub
-
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_ed25519
+
+          if [ -n "${SIGNING_PASSPHRASE:-}" ]; then
+            ssh-add -K ~/.ssh/id_ed25519
+          fi
+
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
 
       - name: Synchronize files
         shell: bash
@@ -89,7 +93,7 @@ jobs:
 
           rm -rf "$SOURCE_DIR"
 
-      - name: Sign and push commit
+      - name: Sign and push commit with verified SSH key
         shell: bash
         env:
           TARGET_PUSH_TOKEN: ${{ secrets.TARGET_PUSH_TOKEN }}
@@ -102,19 +106,16 @@ jobs:
           git config gpg.format ssh
           git config user.signingkey ~/.ssh/id_ed25519.pub
           git config commit.gpgsign true
-
           git config core.filemode false
 
           git add --all -- chemistry-flashcards
 
           if git diff --cached --quiet; then
-            echo "No synchronization changes."
+            echo "No synchronization changes detected."
             exit 0
           fi
 
-          # Sign the commit with the SSH key tied to your GitHub account
           git commit -S -m "$SOURCE_COMMIT_MESSAGE"
 
-          # Push using your account PAT so GitHub verifies the signed commit
           git remote set-url origin "https://x-access-token:${TARGET_PUSH_TOKEN}@github.com/46009361/46009361.com.git"
           git push origin HEAD:main
