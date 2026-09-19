@@ -43,26 +43,56 @@ jobs:
         shell: bash
         env:
           SIGNING_KEY: ${{ secrets.SSH_SIGNING_PRIVATE_KEY }}
+          SIGNING_PUBLIC_KEY: ${{ secrets.SSH_SIGNING_PUBLIC_KEY }}
         run: |
           set -euo pipefail
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          cat > ~/.ssh/id_ed25519 <<'EOF'
-          ${SIGNING_KEY}
-          EOF
-          chmod 600 ~/.ssh/id_ed25519
-
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/id_ed25519
-
-          if [ -n "${SIGNING_PASSPHRASE:-}" ]; then
-            ssh-add -K ~/.ssh/id_ed25519
+          if [ -z "${SIGNING_KEY:-}" ]; then
+            echo "::error::SSH_SIGNING_PRIVATE_KEY is empty or unavailable."
+            exit 1
           fi
 
-          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
-          chmod 644 ~/.ssh/id_ed25519.pub
+          if [ -z "${SIGNING_PUBLIC_KEY:-}" ]; then
+            echo "::error::SSH_SIGNING_PUBLIC_KEY is empty or unavailable."
+            exit 1
+          fi
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          # Write the OpenSSH private key exactly as stored in the secret.
+          printf '%s\n' "$SIGNING_KEY" > "$HOME/.ssh/github-signing"
+          chmod 600 "$HOME/.ssh/github-signing"
+
+          # Write the public key exactly as stored in the secret.
+          printf '%s\n' "$SIGNING_PUBLIC_KEY" > "$HOME/.ssh/github-signing.pub"
+          chmod 644 "$HOME/.ssh/github-signing.pub"
+
+          if ! grep -q '^-----BEGIN OPENSSH PRIVATE KEY-----$' "$HOME/.ssh/github-signing"; then
+            echo "::error::SSH_SIGNING_PRIVATE_KEY does not look like an OpenSSH private key."
+            exit 1
+          fi
+
+          eval "$(ssh-agent -s)"
+
+          if [ -n "${SIGNING_PASSPHRASE:-}" ]; then
+            export SSH_ASKPASS_REQUIRE=force
+            export DISPLAY=:99
+
+            ASKPASS_SCRIPT="$(mktemp)"
+            chmod 700 "$ASKPASS_SCRIPT"
+
+            cat > "$ASKPASS_SCRIPT" <<'ASKPASS'
+#!/usr/bin/env bash
+printf '%s\n' "$SIGNING_PASSPHRASE"
+ASKPASS
+
+            export SSH_ASKPASS="$ASKPASS_SCRIPT"
+            ssh-add "$HOME/.ssh/github-signing"
+            rm -f "$ASKPASS_SCRIPT"
+          else
+            ssh-add "$HOME/.ssh/github-signing"
+          fi
 
       - name: Synchronize files
         shell: bash
@@ -74,6 +104,7 @@ jobs:
 
           mkdir -p "$TARGET_DIR"
 
+          # Remove previous synchronized contents to ensure mirror behavior.
           find "$TARGET_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
           find "$SOURCE_DIR" \
@@ -104,7 +135,7 @@ jobs:
           git config user.email "$GIT_USER_EMAIL"
 
           git config gpg.format ssh
-          git config user.signingkey ~/.ssh/id_ed25519.pub
+          git config user.signingkey "$HOME/.ssh/github-signing.pub"
           git config commit.gpgsign true
           git config core.filemode false
 
@@ -117,5 +148,7 @@ jobs:
 
           git commit -S -m "$SOURCE_COMMIT_MESSAGE"
 
-          git remote set-url origin "https://x-access-token:${TARGET_PUSH_TOKEN}@github.com/46009361/46009361.com.git"
+          git remote set-url origin \
+            "https://x-access-token:${TARGET_PUSH_TOKEN}@github.com/46009361/46009361.com.git"
+
           git push origin HEAD:main
